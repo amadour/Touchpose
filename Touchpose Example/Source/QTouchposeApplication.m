@@ -18,6 +18,13 @@
 
 #import <objc/runtime.h> 
 
+#define TOUCH_DIRECTION_THRESHOLD 5.
+
+typedef enum {
+    QTouchposeApplicationTouchDirectionUndefined = 0,
+    QTouchposeApplicationTouchDirectionHorizontal,
+    QTouchposeApplicationTouchDirectionVertical,
+} QTouchposeApplicationTouchDirection;
 
 @interface QTouchposeApplication ()
 
@@ -205,6 +212,25 @@ static void UIWindow_new_didAddSubview(UIWindow *window, SEL _cmd, UIView *view)
     {
         CGPoint point = [touch locationInView:_touchView];
         UIView *fingerView = (UIView *)CFDictionaryGetValue(_touchDictionary, (__bridge const void *)(touch));
+        
+        //Directional lock: use the finger view tag to store the initial direction of the touch
+        //and constrain the finger view on this direction afterwards.
+        if (fingerView.tag == QTouchposeApplicationTouchDirectionUndefined && self.directionalLockEnabled) {
+            if (abs(fingerView.center.x - point.x) > abs(fingerView.center.y - point.y) ) {
+                if (abs(fingerView.center.x - point.x) > TOUCH_DIRECTION_THRESHOLD)
+                    fingerView.tag = QTouchposeApplicationTouchDirectionHorizontal;
+            } else {
+                if (abs(fingerView.center.y - point.y) > TOUCH_DIRECTION_THRESHOLD)
+                    fingerView.tag = QTouchposeApplicationTouchDirectionVertical;
+            }
+            
+            if (fingerView)
+                point = fingerView.center;
+        } else if (fingerView.tag == QTouchposeApplicationTouchDirectionHorizontal) {
+                point.y = fingerView.center.y;
+        } else if (fingerView.tag == QTouchposeApplicationTouchDirectionVertical) {
+                point.x = fingerView.center.x;
+        }
         
         if (touch.phase == UITouchPhaseCancelled || touch.phase == UITouchPhaseEnded)
         {
